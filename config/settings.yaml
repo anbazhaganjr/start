@@ -1,0 +1,67 @@
+# START Project Configuration
+# API keys are loaded from .env (never stored here)
+
+# Universe
+symbols:
+  - SPY
+  - QQQ
+  - NVDA
+  - AAPL
+  - TSLA
+  - MSFT
+  - AMZN
+  - META
+  - GOOGL
+  - AMD
+  - NFLX
+  - AVGO
+
+# Data settings
+data:
+  interval: "5Min"
+  start_date: "2023-01-01"
+  end_date: "2025-07-31"
+  raw_dir: "data/raw"
+  parquet_dir: "data/parquet"
+  features_dir: "data/features"
+
+# Feature engineering
+features:
+  rsi_period: 14
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  sma_short: 20
+  sma_long: 50
+  bollinger_period: 20
+  bollinger_std: 2
+  rolling_vol_window: 5
+
+# Model training
+training:
+  walk_forward_train_days: 60
+  walk_forward_test_days: 5
+  sequence_length: 20
+  batch_size: 64
+  max_epochs: 50
+  patience: 5
+
+# RL
+rl:
+  total_timesteps: 50000
+  ppo_lr: 0.0003
+  dqn_lr: 0.0001
+  drawdown_penalty: 0.1
+
+# Backtesting
+backtest:
+  slippage_pct: 0.0001
+  commission_per_share: 0.005
+  initial_capital: 100000
+
+# Sentiment
+sentiment:
+  model: "mistral:7b-instruct-v0.3-q4_K_M"
+  ollama_url: "http://localhost:11434"
+  batch_size: 50
+  timeout: 30

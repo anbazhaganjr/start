@@ -1,0 +1,34 @@
+# Environment
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Data (large files)
+data/raw/
+data/parquet/
+data/features/
+data/sentiment/
+data/models/
+data/results/
+
+# Keep news headlines (committed dataset)
+!data/news/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.qodo/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log

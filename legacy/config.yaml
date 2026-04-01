@@ -1,0 +1,28 @@
+# config.yaml
+
+# API Keys
+tradier:
+  api_key: "MNuywhxXBAAECG0qeRs0mzdGx1AB"
+
+alpaca:
+  api_key: "CKXZ5AR0R4YJGYBA6GUK"
+  api_secret: "bS5lykXrhHhvp3tP5D4Xr0iIb2Tx2StR6LPIkumj"
+  base_url: "https://paper-api.alpaca.markets"
+
+# Stock Symbols to Fetch
+stocks:
+  - "AAPL"
+  - "AMZN"
+  - "MSFT"
+  - "TSLA"
+
+# Data Settings
+data_settings:
+  interval: "5min"
+  days_back: 50 # Fetch data from how many days back
+  save_folder: "data"
+
+# Logging
+logging:
+  enabled: true
+  log_file: "script.log"
