@@ -6,16 +6,20 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Data (large files)
+# Data — raw and intermediate (large, regenerable)
 data/raw/
 data/parquet/
-data/features/
-data/sentiment/
 data/models/
-data/results/
 
-# Keep news headlines (committed dataset)
+# Data — committed for dashboard (pre-computed results)
+# These are small Parquets needed by Streamlit Cloud
+!data/features/
+!data/results/
+!data/sentiment/
 !data/news/
+
+# Streamlit Cloud secrets (set via Streamlit Cloud UI, not committed)
+.streamlit/secrets.toml
 
 # OS
 .DS_Store

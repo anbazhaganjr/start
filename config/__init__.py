@@ -34,10 +34,31 @@ def get_config() -> dict:
     }
 
     # Resolve paths relative to project root
-    for key in ("raw_dir", "parquet_dir", "features_dir"):
-        _config["data"][key] = str(_PROJECT_ROOT / _config["data"][key])
+    path_keys = ("raw_dir", "parquet_dir", "features_dir", "results_dir",
+                 "models_dir", "sentiment_dir")
+    for key in path_keys:
+        if key in _config.get("data", {}):
+            _config["data"][key] = str(_PROJECT_ROOT / _config["data"][key])
 
     return _config
+
+
+def get_setting(*keys, default=None):
+    """
+    Get a nested config value using dot-style keys.
+
+    Usage:
+        get_setting("models", "lstm", "hidden_size")       → 32
+        get_setting("backtest", "initial_capital")          → 100000
+        get_setting("models", "lstm", "missing", default=0) → 0
+    """
+    cfg = get_config()
+    for key in keys:
+        if isinstance(cfg, dict) and key in cfg:
+            cfg = cfg[key]
+        else:
+            return default
+    return cfg
 
 
 def get_project_root() -> Path:

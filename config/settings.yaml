@@ -1,7 +1,10 @@
 # START Project Configuration
 # API keys are loaded from .env (never stored here)
+# ALL tunable parameters are defined here — no hardcoded values in code
 
+# ============================================================
 # Universe
+# ============================================================
 symbols:
   - SPY
   - QQQ
@@ -16,18 +19,25 @@ symbols:
   - NFLX
   - AVGO
 
-# Data settings
+# ============================================================
+# Data Settings
+# ============================================================
 data:
   interval: "5Min"
   # yfinance 1h: ~730 days back; daily: full history
-  # Adjust start_date per interval; pipeline auto-clips to available range
   start_date: "2024-04-15"
   end_date: "2026-03-31"
   raw_dir: "data/raw"
   parquet_dir: "data/parquet"
   features_dir: "data/features"
+  results_dir: "data/results"
+  models_dir: "data/models"
+  sentiment_dir: "data/sentiment"
+  default_provider: "yfinance"
 
-# Feature engineering
+# ============================================================
+# Feature Engineering
+# ============================================================
 features:
   rsi_period: 14
   macd_fast: 12
@@ -38,32 +48,117 @@ features:
   bollinger_period: 20
   bollinger_std: 2
   rolling_vol_window: 5
+  correlation_threshold: 0.95
+  warmup_bars: 50  # Bars to drop at start for indicator warmup
 
-# Model training
-training:
-  walk_forward_train_days: 60
-  walk_forward_test_days: 5
-  sequence_length: 20
-  batch_size: 64
-  max_epochs: 50
-  patience: 5
+# ============================================================
+# Model Training — Classical ML
+# ============================================================
+models:
+  # Walk-forward validation
+  walk_forward:
+    train_bars: 1500
+    test_bars: 200
+    step_bars: 200
+    mode: "expanding"  # "expanding" or "sliding"
 
-# RL
+  # Logistic Regression
+  logistic:
+    C: 1.0
+    max_iter: 1000
+
+  # Ridge Regression
+  ridge:
+    alpha: 1.0
+
+  # Random Forest
+  random_forest:
+    n_estimators: 50
+    max_depth: 8
+    min_samples_leaf: 20
+
+  # LSTM
+  lstm:
+    hidden_size: 32
+    num_layers: 1
+    seq_len: 20
+    batch_size: 64
+    max_epochs: 30
+    patience: 5
+    learning_rate: 0.001
+    train_val_split: 0.8
+
+  # CNN
+  cnn:
+    conv1_filters: 16
+    conv1_kernel_size: 5
+    conv2_filters: 8
+    conv2_kernel_size: 3
+    dropout_rate: 0.2
+    seq_len: 20
+    batch_size: 64
+    max_epochs: 30
+    patience: 5
+    learning_rate: 0.001
+    train_val_split: 0.8
+
+# ============================================================
+# Reinforcement Learning
+# ============================================================
 rl:
   total_timesteps: 50000
-  ppo_lr: 0.0003
-  dqn_lr: 0.0001
+  window_size: 20
+  train_eval_split: 0.8
+  eval_episodes: 1
+
+  # PPO (Proximal Policy Optimization)
+  ppo:
+    learning_rate: 0.0003
+    n_steps: 256
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+
+  # DQN (Deep Q-Network)
+  dqn:
+    learning_rate: 0.0001
+    buffer_size: 10000
+    learning_starts: 500
+    batch_size: 64
+    gamma: 0.99
+    target_update_interval: 250
+    exploration_fraction: 0.3
+    exploration_final_eps: 0.05
+
+  # Reward shaping
   drawdown_penalty: 0.1
 
+# ============================================================
 # Backtesting
+# ============================================================
 backtest:
-  slippage_pct: 0.0001
-  commission_per_share: 0.005
+  slippage_pct: 0.0001       # 0.01%
+  commission_per_share: 0.005  # $0.005
   initial_capital: 100000
+  shares_per_trade: 100
+  annualize_metrics: true
 
-# Sentiment
+# ============================================================
+# Sentiment Analysis
+# ============================================================
 sentiment:
   model: "mistral:7b-instruct-v0.3-q4_K_M"
   ollama_url: "http://localhost:11434"
   batch_size: 50
-  timeout: 30
+  timeout: 60
+  headlines_per_symbol: 30
+
+# ============================================================
+# Dashboard
+# ============================================================
+dashboard:
+  title: "START — Adaptive Trading Dashboard"
+  theme: "wide"
+  refresh_message: "Data refreshed automatically via GitHub Actions"

@@ -1,0 +1,57 @@
+# Daily data refresh for START dashboard
+# Fetches latest market data and updates cached results
+# Runs on GitHub Actions free tier (2,000 min/month)
+
+name: Daily Data Refresh
+
+on:
+  schedule:
+    # Run at 6:00 AM EST (11:00 UTC) every weekday
+    - cron: '0 11 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas numpy pyarrow yfinance pyyaml python-dotenv scikit-learn ta-lib || true
+          # ta-lib may fail on Ubuntu — pure pandas fallback will work
+          pip install pandas numpy pyarrow yfinance pyyaml python-dotenv scikit-learn
+
+      - name: Refresh data (ingestion + features)
+        run: |
+          python scripts/01_data_ingestion.py --interval 1h
+          python scripts/02_feature_engineering.py --interval 1h
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Re-run lightweight backtests
+        run: |
+          python scripts/06_ablation_backtest.py --skip-rl --skip-sentiment
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Commit updated results
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/results/ data/features/ data/parquet/
+          git diff --cached --quiet || git commit -m "chore: daily data refresh $(date +'%Y-%m-%d')"
+          git push
