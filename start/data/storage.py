@@ -20,6 +20,16 @@ from start.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _strip_tz(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove timezone info from datetime columns to avoid ZoneInfoNotFoundError."""
+    for col in df.columns:
+        if hasattr(df[col], 'dt') and df[col].dt.tz is not None:
+            df[col] = df[col].dt.tz_localize(None)
+    if df.index.dtype.kind == 'M' and hasattr(df.index, 'tz') and df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
+    return df
+
+
 def _get_dir(stage: str) -> Path:
     """Get the directory for a pipeline stage."""
     root = get_project_root()
@@ -165,6 +175,8 @@ def load_features(
         return pd.DataFrame()
 
     df = pd.read_parquet(path, engine="pyarrow")
+    # Strip timezone info to avoid ZoneInfoNotFoundError on minimal containers
+    df = _strip_tz(df)
     logger.info(f"[storage] Loaded {len(df)} feature rows for {symbol}")
     return df
 
@@ -209,4 +221,5 @@ def load_results(name: str) -> pd.DataFrame:
     path = _get_dir("results") / f"{name}.parquet"
     if not path.exists():
         return pd.DataFrame()
-    return pd.read_parquet(path, engine="pyarrow")
+    df = pd.read_parquet(path, engine="pyarrow")
+    return _strip_tz(df)
