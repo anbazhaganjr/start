@@ -1,36 +1,10 @@
-# Core data
-pandas==2.2.2
-numpy==1.26.4
-pyarrow==16.1.0
-scipy==1.13.1
-
-# ML
-scikit-learn==1.5.1
-torch>=2.0.0
-torchvision>=0.15.0
-
-# RL
-gymnasium>=0.29.0
-stable-baselines3>=2.0.0
-
-# Technical analysis
-ta-lib==0.5.1
-
-# Sentiment / LLM
-transformers>=4.30.0
-requests>=2.31.0
-
-# Dashboard
-streamlit==1.37.1
-plotly==5.24.1
-
-# API clients
-alpaca-trade-api==3.2.0
-
-# Config & utils
+# Dashboard dependencies (Streamlit Cloud)
+# Only what's needed to render pre-computed results
+pandas>=2.0.0
+numpy>=1.24.0
+pyarrow>=14.0.0
+streamlit>=1.30.0
+plotly>=5.18.0
 python-dotenv>=1.0.0
 PyYAML>=6.0.1
-tqdm>=4.65.0
-
-# Dev
-pytest>=7.0.0
+requests>=2.31.0
