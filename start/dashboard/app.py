@@ -38,16 +38,18 @@ st.markdown("---")
 st.header("Project Overview")
 
 st.markdown("""
-START is an adaptive intraday trading framework that combines:
+**What does START do?** It answers a simple question: *Can we use AI to make better stock trading decisions?*
 
-- **Technical Analysis** — MACD, RSI, Bollinger Bands, SMA crossovers
-- **Machine Learning** — Logistic Regression, Ridge, Random Forest, LSTM, CNN
-- **Reinforcement Learning** — PPO and DQN agents with cost-aware rewards
-- **LLM Sentiment** — Mistral 7B via Ollama for financial headline scoring
-- **Cost-Aware Backtesting** — Realistic slippage and commission modeling
-- **Ablation Studies** — 5-config analysis isolating each component's contribution
+We built a system that combines multiple approaches and measures which ones actually work:
 
-**Universe:** 12 high-liquidity symbols (SPY, QQQ, NVDA, AAPL, TSLA, MSFT, AMZN, META, GOOGL, AMD, NFLX, AVGO)
+- **Technical Analysis** — Classic chart-reading indicators (MACD, RSI, Bollinger Bands, moving averages)
+- **Machine Learning** — AI models that learn patterns from historical data (Logistic Regression, Ridge, Random Forest, LSTM, CNN)
+- **Reinforcement Learning** — AI agents that learn to trade through trial and error, like training a robot (PPO, DQN)
+- **LLM Sentiment** — A language AI (Mistral 7B) that reads financial news and judges if it's positive or negative
+- **Cost-Aware Backtesting** — We include real trading costs (slippage + commissions) so results aren't inflated
+- **Ablation Studies** — We test each component alone AND combined to find what actually adds value
+
+**Stocks Tested:** 12 major high-volume stocks (SPY, QQQ, NVDA, AAPL, TSLA, MSFT, AMZN, META, GOOGL, AMD, NFLX, AVGO)
 """)
 
 # Key Metrics
@@ -127,15 +129,15 @@ with col4:
 # Navigation guide
 st.header("Dashboard Pages")
 st.markdown("""
-| Page | Description |
+| Page | What You'll See |
 |------|-------------|
-| 🔥 **Signal Heatmap** | Model signal agreement across symbols and time |
-| 💰 **PnL Charts** | Equity curves, drawdowns, and trade analysis |
-| 📰 **Sentiment** | LLM-based sentiment scoring results |
-| 🔬 **Ablation** | Component contribution analysis (5 configs) |
-| 📊 **Paper Trade** | Interactive strategy simulation |
+| 🔥 **Signal Heatmap** | Compare all strategies across all stocks — heatmaps, bubble charts, and rankings |
+| 💰 **PnL Charts** | Watch portfolio value grow/shrink over time with interactive candlestick charts |
+| 📰 **Sentiment** | See how AI reads financial news — sentiment gauges, headline analysis |
+| 🔬 **Ablation** | The key experiment: which components actually matter? Animated charts + radar plots |
+| 📊 **Paper Trade** | Pick a stock + strategy and simulate trading with fake money. See every trade. |
 
-**Use the sidebar to navigate between pages.**
+**Use the sidebar (left) to navigate between pages.**
 """)
 
 page_footer()
