@@ -117,9 +117,14 @@ with col2:
     st.metric("Result Files", n_results)
 
 with col3:
-    models_dir = root / "data" / "models"
-    n_models = len(list(models_dir.glob("*"))) if models_dir.exists() else 0
-    st.metric("RL Model Files", n_models)
+    # RL models are .zip files (gitignored, trained locally)
+    # Show strategy count from results instead
+    try:
+        rl_res = load_results("rl_comparison")
+        n_rl = rl_res["strategy"].nunique() if not rl_res.empty else 0
+        st.metric("RL Strategies", n_rl, help="PPO and DQN agents (models trained locally)")
+    except Exception:
+        st.metric("RL Strategies", 0)
 
 with col4:
     sentiment_dir = root / "data" / "sentiment"

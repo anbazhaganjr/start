@@ -162,6 +162,7 @@ st.header("Strategy-Symbol Treemap")
 
 tree_data = combined.copy()
 tree_data["abs_return"] = tree_data["total_return"].abs().clip(lower=0.001)
+tree_data["sharpe_label"] = tree_data["sharpe_ratio"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
 if not tree_data.empty:
     fig_tree = px.treemap(
         tree_data,
@@ -170,12 +171,13 @@ if not tree_data.empty:
         color="sharpe_ratio",
         color_continuous_scale="RdYlGn",
         title="Strategy-Symbol Breakdown (size = |return|, color = Sharpe)",
-        hover_data={"total_return": ":.2%", "win_rate": ":.1%"},
+        hover_data={"total_return": ":.2%", "win_rate": ":.1%", "sharpe_ratio": ":.3f"},
+        custom_data=["sharpe_label"],
     )
     fig_tree.update_layout(height=600)
     fig_tree.update_traces(
-        textinfo="label+value",
-        texttemplate="%{label}<br>Sharpe: %{color:.2f}",
+        textinfo="label+text",
+        texttemplate="%{label}<br>Sharpe: %{customdata[0]}",
     )
     st.plotly_chart(fig_tree, use_container_width=True)
 
