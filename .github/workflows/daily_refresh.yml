@@ -26,16 +26,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install pandas numpy pyarrow scipy yfinance pyyaml python-dotenv \
-                      scikit-learn tqdm requests gymnasium stable-baselines3
-          # ta-lib C library not available on Ubuntu — pandas fallback is used automatically
-          # torch CPU-only keeps the install small (~200MB vs 2GB)
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install pandas==2.2.2 numpy==1.26.4 pyarrow scipy yfinance pyyaml \
+                      python-dotenv scikit-learn tqdm requests gymnasium stable-baselines3
+
+      - name: Verify imports
+        run: |
+          python -c "import pandas; import torch; import sklearn; import gymnasium; print('All imports OK')"
+        env:
+          PYTHONPATH: ${{ github.workspace }}
 
       - name: Refresh data (ingestion + features)
         run: |
