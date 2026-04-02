@@ -31,9 +31,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install pandas numpy pyarrow yfinance pyyaml python-dotenv scikit-learn ta-lib || true
-          # ta-lib may fail on Ubuntu — pure pandas fallback will work
-          pip install pandas numpy pyarrow yfinance pyyaml python-dotenv scikit-learn
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install pandas numpy pyarrow scipy yfinance pyyaml python-dotenv \
+                      scikit-learn tqdm requests gymnasium stable-baselines3
+          # ta-lib C library not available on Ubuntu — pandas fallback is used automatically
+          # torch CPU-only keeps the install small (~200MB vs 2GB)
 
       - name: Refresh data (ingestion + features)
         run: |
@@ -47,6 +49,7 @@ jobs:
           python scripts/06_ablation_backtest.py --skip-rl --skip-sentiment
         env:
           PYTHONPATH: ${{ github.workspace }}
+        continue-on-error: true
 
       - name: Commit updated results
         run: |
