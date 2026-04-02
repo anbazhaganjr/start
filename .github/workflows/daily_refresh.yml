@@ -58,6 +58,6 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add data/results/ data/features/ data/parquet/
+          git add data/results/ data/features/
           git diff --cached --quiet || git commit -m "chore: daily data refresh $(date +'%Y-%m-%d')"
           git push
