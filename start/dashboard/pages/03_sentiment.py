@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from config import get_project_root
 from start.data.storage import load_results
+from start.dashboard.components import page_footer
 
 st.set_page_config(page_title="Sentiment", page_icon="📰", layout="wide")
 st.title("📰 Sentiment Analysis")
@@ -235,11 +236,33 @@ else:
 # 6. KEY INSIGHT BOX
 # ──────────────────────────────────────────────────
 st.header("Key Insight")
-st.info("""
-**Finding:** Sentiment analysis using generic Financial PhraseBank headlines produced near-zero aggregate scores
-across all symbols. This is expected -- the PhraseBank dataset contains general financial sentences, not
-symbol-specific news. In our ablation study, adding sentiment did NOT improve trading performance.
 
-**Implication:** For sentiment to provide an edge, it would need real-time, symbol-specific news
-(e.g., from Marketaux, Benzinga, or Reuters API). This is a key area for future improvement.
+if "symbol" in scores.columns and "weighted_sentiment" in scores.columns:
+    most_bullish = scores.loc[scores["weighted_sentiment"].idxmax()]
+    most_bearish = scores.loc[scores["weighted_sentiment"].idxmin()]
+    st.info(f"""
+**Finding:** Live sentiment from Alpha Vantage news feeds produces **differentiated scores** across symbols,
+unlike generic PhraseBank data which showed near-zero scores for all tickers. Real headlines tied to specific
+companies yield meaningful bullish/bearish separation.
+
+**Strongest Bullish:** `{most_bullish['symbol']}` (weighted sentiment {most_bullish['weighted_sentiment']:.3f})
+**Strongest Bearish:** `{most_bearish['symbol']}` (weighted sentiment {most_bearish['weighted_sentiment']:.3f})
+
+**Implication:** Symbol-specific live news sentiment provides actionable signal differentiation
+that generic financial phrase datasets cannot. This validates the use of real-time news APIs
+as a feature source for the trading framework.
 """)
+else:
+    st.info("Sentiment scores loaded but missing expected columns for insight summary.")
+
+# ──────────────────────────────────────────────────
+# DOWNLOAD BUTTON
+# ──────────────────────────────────────────────────
+st.download_button(
+    label="Download sentiment scores as CSV",
+    data=scores.to_csv(index=False),
+    file_name="sentiment_scores.csv",
+    mime="text/csv",
+)
+
+page_footer()

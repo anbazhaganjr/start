@@ -31,7 +31,15 @@ def get_config() -> dict:
         "alpaca_base_url": os.environ.get(
             "ALPACA_BASE_URL", "https://paper-api.alpaca.markets"
         ),
+        "alphavantage_key": os.environ.get("ALPHAVANTAGE_API_KEY", ""),
     }
+
+    # Resolve Alpha Vantage key in sentiment config (supports ${ENV_VAR} syntax)
+    sent_cfg = _config.get("sentiment", {})
+    av_key_val = sent_cfg.get("alphavantage_api_key", "")
+    if isinstance(av_key_val, str) and av_key_val.startswith("${") and av_key_val.endswith("}"):
+        env_name = av_key_val[2:-1]
+        sent_cfg["alphavantage_api_key"] = os.environ.get(env_name, "")
 
     # Resolve paths relative to project root
     path_keys = ("raw_dir", "parquet_dir", "features_dir", "results_dir",

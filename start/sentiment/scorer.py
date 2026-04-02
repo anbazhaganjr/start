@@ -18,21 +18,53 @@ logger = get_logger(__name__)
 
 
 def score_headlines(
-    headlines: list[dict],
+    headlines: list[dict] | pd.DataFrame,
     client: Optional[OllamaClient] = None,
 ) -> pd.DataFrame:
     """
     Score a list of headlines using the LLM.
 
+    If *headlines* is already a DataFrame with float 'sentiment' and
+    'confidence' columns (e.g. from Alpha Vantage), those pre-computed
+    scores are used directly — no LLM call is made.
+
     If Ollama is not available, uses true_sentiment from PhraseBank fallback.
 
     Args:
-        headlines: List of headline dicts.
+        headlines: List of headline dicts, or a pre-scored DataFrame.
         client: Optional OllamaClient. Created if not provided.
 
     Returns:
         DataFrame with columns: headline, sentiment, confidence, source.
     """
+    # ------------------------------------------------------------------
+    # Fast path: headlines already arrive as a pre-scored DataFrame
+    # (Alpha Vantage returns sentiment & confidence as floats)
+    # ------------------------------------------------------------------
+    if isinstance(headlines, pd.DataFrame) and not headlines.empty:
+        has_sentiment = (
+            "sentiment" in headlines.columns
+            and pd.api.types.is_float_dtype(headlines["sentiment"])
+        )
+        has_confidence = (
+            "confidence" in headlines.columns
+            and pd.api.types.is_float_dtype(headlines["confidence"])
+        )
+        if has_sentiment and has_confidence:
+            logger.info(
+                f"[sentiment] Using {len(headlines)} pre-scored headlines "
+                f"(source: {headlines['source'].iloc[0] if 'source' in headlines.columns else 'unknown'})"
+            )
+            # Normalise to the standard output schema
+            return headlines[["headline", "sentiment", "confidence", "source"]].copy()
+
+    # ------------------------------------------------------------------
+    # Standard path: score via Ollama or ground-truth labels
+    # ------------------------------------------------------------------
+    # If a DataFrame was passed but lacked scores, convert to list[dict]
+    if isinstance(headlines, pd.DataFrame):
+        headlines = headlines.to_dict("records")
+
     if client is None:
         client = OllamaClient()
 
@@ -106,6 +138,7 @@ def compute_sentiment_score(scored_df: pd.DataFrame) -> dict:
 def score_symbol(
     symbol: str,
     api_token: Optional[str] = None,
+    av_api_key: Optional[str] = None,
     client: Optional[OllamaClient] = None,
 ) -> dict:
     """
@@ -114,6 +147,7 @@ def score_symbol(
     Args:
         symbol: Stock ticker.
         api_token: Optional Marketaux API token.
+        av_api_key: Optional Alpha Vantage API key.
         client: Optional OllamaClient.
 
     Returns:
@@ -121,10 +155,15 @@ def score_symbol(
     """
     logger.info(f"[sentiment] Processing {symbol}")
 
-    # Fetch headlines
-    headlines = get_headlines_for_symbol(symbol, api_token)
+    # Fetch headlines (AV -> Marketaux -> PhraseBank)
+    headlines = get_headlines_for_symbol(symbol, api_token, av_api_key=av_api_key)
 
-    if not headlines:
+    # Check emptiness: DataFrame uses .empty, list uses truthiness
+    is_empty = (
+        (isinstance(headlines, pd.DataFrame) and headlines.empty)
+        or (isinstance(headlines, list) and len(headlines) == 0)
+    )
+    if is_empty:
         logger.warning(f"[sentiment] No headlines for {symbol}")
         return {
             "symbol": symbol,

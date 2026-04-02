@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from config import get_project_root
 from start.data.storage import load_results
+from start.dashboard.components import page_footer
 
 st.set_page_config(page_title="Ablation Study", page_icon="🔬", layout="wide")
 st.title("🔬 Ablation Study")
@@ -274,6 +275,18 @@ if "config" in filtered.columns:
     - The full ensemble provides stable, well-rounded performance
     """)
 
+# ──────────────────────────────────────────────────
+# DOWNLOAD BUTTON
+# ──────────────────────────────────────────────────
+st.download_button(
+    label="Download ablation results as CSV",
+    data=filtered.to_csv(index=False),
+    file_name="ablation_results.csv",
+    mime="text/csv",
+)
+
 # Raw data
 with st.expander("View Full Results Table", expanded=False):
     st.dataframe(filtered, use_container_width=True)
+
+page_footer()

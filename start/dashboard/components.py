@@ -67,6 +67,10 @@ def page_footer():
     """Standard footer for all pages."""
     st.markdown("---")
     st.caption(
+        "This is a research project for educational purposes only. "
+        "Not financial advice. Past performance does not guarantee future results."
+    )
+    st.caption(
         "START — Strategic Technical Analysis for Reliable Trading | "
         "M.S. Data Analytics Capstone | McDaniel College"
     )

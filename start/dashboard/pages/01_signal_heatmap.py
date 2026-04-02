@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from config import get_project_root
 from start.data.storage import load_results
+from start.dashboard.components import page_footer
 
 st.set_page_config(page_title="Signal Heatmap", page_icon="🔥", layout="wide")
 st.title("🔥 Signal Heatmap")
@@ -215,6 +216,16 @@ if par_cols:
     st.plotly_chart(fig_par, use_container_width=True)
 
 # ──────────────────────────────────────────────────
+# DOWNLOAD BUTTON
+# ──────────────────────────────────────────────────
+st.download_button(
+    label="Download data as CSV",
+    data=combined.to_csv(index=False),
+    file_name="signal_heatmap_data.csv",
+    mime="text/csv",
+)
+
+# ──────────────────────────────────────────────────
 # 6. DATA TABLE
 # ──────────────────────────────────────────────────
 with st.expander("View Raw Data", expanded=False):
@@ -226,3 +237,5 @@ with st.expander("View Raw Data", expanded=False):
         }),
         use_container_width=True,
     )
+
+page_footer()

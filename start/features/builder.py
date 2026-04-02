@@ -42,7 +42,7 @@ def build_features(
     df: pd.DataFrame,
     drop_warmup: bool = True,
     add_target: bool = True,
-    drop_correlated: bool = True,
+    drop_correlated: bool = False,
     corr_threshold: float = 0.95,
 ) -> pd.DataFrame:
     """

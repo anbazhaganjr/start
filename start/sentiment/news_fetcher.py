@@ -1,12 +1,14 @@
 """
 News headline fetcher for sentiment analysis.
 
-Uses Marketaux free API as primary source with Financial PhraseBank as fallback.
+Uses Alpha Vantage NEWS_SENTIMENT as primary source (symbol-specific, pre-scored),
+Marketaux free API as secondary, and Financial PhraseBank as fallback.
 Financial PhraseBank is a citable academic dataset (Malo et al., 2014).
 """
 
-import json
+import os
 import random
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +17,10 @@ import pandas as pd
 from start.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Track last AV call to enforce rate limiting (free tier: 25 req/day)
+_last_av_call_time: float = 0.0
+_AV_MIN_INTERVAL: float = 12.0  # seconds between calls
 
 # Financial PhraseBank sample headlines for fallback
 # Source: Malo et al., "Good debt or bad debt: Detecting semantic orientations in economic texts" (2014)
@@ -56,6 +62,114 @@ PHRASEBANK_SAMPLES = {
         "The company announced a routine change to its board of directors.",
     ],
 }
+
+
+def fetch_alphavantage_headlines(
+    symbol: str,
+    api_key: Optional[str] = None,
+    limit: int = 50,
+) -> pd.DataFrame:
+    """
+    Fetch symbol-specific news with pre-computed sentiment from Alpha Vantage.
+
+    The NEWS_SENTIMENT endpoint returns articles with ticker-level sentiment
+    scores and relevance, so no LLM scoring is needed.
+
+    Args:
+        symbol: Stock ticker symbol (e.g. "AAPL").
+        api_key: Alpha Vantage API key. Falls back to env var ALPHAVANTAGE_API_KEY.
+        limit: Max articles to retrieve (AV caps at 1000; free tier is 25 req/day).
+
+    Returns:
+        DataFrame with columns: headline, source, published_at, sentiment,
+        confidence, label.  Empty DataFrame on any failure.
+    """
+    global _last_av_call_time
+
+    if not api_key:
+        api_key = os.environ.get("ALPHAVANTAGE_API_KEY", "")
+    if not api_key:
+        logger.info("[news] No Alpha Vantage API key configured, skipping AV")
+        return pd.DataFrame()
+
+    import requests
+
+    # Enforce minimum interval between calls (rate-limit protection)
+    elapsed = time.time() - _last_av_call_time
+    if elapsed < _AV_MIN_INTERVAL and _last_av_call_time > 0:
+        wait = _AV_MIN_INTERVAL - elapsed
+        logger.debug(f"[news] Rate-limit: waiting {wait:.1f}s before AV call")
+        time.sleep(wait)
+
+    url = "https://www.alphavantage.co/query"
+    params = {
+        "function": "NEWS_SENTIMENT",
+        "tickers": symbol,
+        "limit": min(limit, 1000),
+        "apikey": api_key,
+    }
+
+    try:
+        logger.info(f"[news] Fetching Alpha Vantage headlines for {symbol}")
+        resp = requests.get(url, params=params, timeout=30)
+        _last_av_call_time = time.time()
+        resp.raise_for_status()
+        data = resp.json()
+
+        # AV returns {"Note": "..."} on rate-limit, or {"Information": "..."} on errors
+        if "Note" in data:
+            logger.warning(f"[news] AV rate limit hit: {data['Note']}")
+            return pd.DataFrame()
+        if "Information" in data:
+            logger.warning(f"[news] AV info message: {data['Information']}")
+            return pd.DataFrame()
+
+        feed = data.get("feed", [])
+        if not feed:
+            logger.info(f"[news] AV returned no articles for {symbol}")
+            return pd.DataFrame()
+
+        rows = []
+        for article in feed:
+            # Find this ticker's sentiment within the article's ticker_sentiment array
+            ticker_match = None
+            for ts in article.get("ticker_sentiment", []):
+                if ts.get("ticker", "").upper() == symbol.upper():
+                    ticker_match = ts
+                    break
+
+            if ticker_match is None:
+                # Article mentions the ticker but has no scored entry; skip
+                continue
+
+            sentiment_score = float(ticker_match.get("ticker_sentiment_score", 0.0))
+            relevance = float(ticker_match.get("relevance_score", 0.0))
+            label = ticker_match.get("ticker_sentiment_label", "Neutral")
+
+            rows.append({
+                "headline": article.get("title", ""),
+                "source": article.get("source", "alphavantage"),
+                "published_at": article.get("time_published", ""),
+                "sentiment": sentiment_score,
+                "confidence": relevance,
+                "label": label,
+            })
+
+        df = pd.DataFrame(rows)
+        logger.info(
+            f"[news] AV returned {len(df)} scored headlines for {symbol}"
+        )
+        return df
+
+    except requests.exceptions.Timeout:
+        logger.warning("[news] AV request timed out")
+        return pd.DataFrame()
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"[news] AV network error: {e}")
+        return pd.DataFrame()
+    except (KeyError, ValueError, TypeError) as e:
+        logger.warning(f"[news] AV response parse error: {e}")
+        return pd.DataFrame()
 
 
 def fetch_marketaux_headlines(
@@ -146,18 +260,33 @@ def generate_phrasebank_headlines(
 def get_headlines_for_symbol(
     symbol: str,
     api_token: Optional[str] = None,
+    av_api_key: Optional[str] = None,
     fallback_n: int = 10,
-) -> list[dict]:
+) -> list[dict] | pd.DataFrame:
     """
-    Get headlines for a symbol, with automatic fallback.
+    Get headlines for a symbol with tiered fallback.
 
-    Tries Marketaux first, falls back to PhraseBank samples.
+    Priority:
+        1. Alpha Vantage NEWS_SENTIMENT (real, symbol-specific, pre-scored)
+        2. Marketaux (live headlines, needs LLM scoring)
+        3. PhraseBank (static academic samples)
+
+    Returns:
+        DataFrame (from Alpha Vantage, with sentiment/confidence columns)
+        or list[dict] (from Marketaux / PhraseBank).
     """
-    # Try live API
+    # --- 1. Try Alpha Vantage (returns DataFrame with pre-computed scores) ---
+    av_df = fetch_alphavantage_headlines(symbol, api_key=av_api_key)
+    if not av_df.empty:
+        logger.info(f"[news] Using Alpha Vantage headlines for {symbol}")
+        return av_df
+
+    # --- 2. Try Marketaux ---
     headlines = fetch_marketaux_headlines(symbol, api_token)
     if headlines:
+        logger.info(f"[news] Using Marketaux headlines for {symbol}")
         return headlines
 
-    # Fallback to PhraseBank
+    # --- 3. Fallback to PhraseBank ---
     logger.info(f"[news] Using PhraseBank fallback for {symbol}")
     return generate_phrasebank_headlines(n_per_category=fallback_n)

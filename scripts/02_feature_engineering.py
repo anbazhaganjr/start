@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--symbols", nargs="+", default=None)
     parser.add_argument("--interval", default="1h", choices=["5min", "15min", "1h", "1d"])
     parser.add_argument("--no-target", action="store_true", help="Skip target creation")
-    parser.add_argument("--no-corr-drop", action="store_true", help="Keep all features")
+    parser.add_argument("--drop-correlated", action="store_true", help="Drop highly correlated features")
     args = parser.parse_args()
 
     config = get_config()
@@ -48,7 +48,7 @@ def main():
         features_df = build_features(
             df,
             add_target=not args.no_target,
-            drop_correlated=not args.no_corr_drop,
+            drop_correlated=args.drop_correlated,
         )
 
         if not features_df.empty:

@@ -149,11 +149,15 @@ backtest:
 # Sentiment Analysis
 # ============================================================
 sentiment:
+  # Alpha Vantage NEWS_SENTIMENT (primary — pre-scored, symbol-specific)
+  alphavantage_api_key: "${ALPHAVANTAGE_API_KEY}"
+  headlines_per_symbol: 50
+
+  # Ollama LLM fallback scoring
   model: "mistral:7b-instruct-v0.3-q4_K_M"
   ollama_url: "http://localhost:11434"
   batch_size: 50
   timeout: 60
-  headlines_per_symbol: 30
 
 # ============================================================
 # Dashboard

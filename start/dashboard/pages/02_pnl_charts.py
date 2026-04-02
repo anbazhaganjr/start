@@ -18,6 +18,7 @@ from start.features.builder import get_feature_columns
 from start.models.baselines import buy_and_hold, ma_crossover
 from start.backtest.engine import backtest_signals
 from start.backtest.metrics import compute_metrics
+from start.dashboard.components import page_footer
 
 st.set_page_config(page_title="PnL Charts", page_icon="💰", layout="wide")
 st.title("💰 PnL & Equity Analysis")
@@ -193,21 +194,20 @@ fig2.add_trace(
     row=1, col=1,
 )
 
-# Bollinger Bands as shaded area
-if "bb_pct" in view_df.columns and "sma_20" in view_df.columns:
-    bb_std = view_df["close"].rolling(20).std()
-    sma = view_df["sma_20"]
-    upper = sma + 2 * bb_std
-    lower = sma - 2 * bb_std
-    fig2.add_trace(go.Scatter(x=timestamps, y=upper, name="BB Upper",
+# Bollinger Bands as shaded area (read pre-computed columns)
+if "bb_upper" in view_df.columns and "bb_lower" in view_df.columns:
+    fig2.add_trace(go.Scatter(x=timestamps, y=view_df["bb_upper"], name="BB Upper",
                               line=dict(color="rgba(150,150,150,0.3)", width=0.5)), row=1, col=1)
-    fig2.add_trace(go.Scatter(x=timestamps, y=lower, name="BB Lower",
+    fig2.add_trace(go.Scatter(x=timestamps, y=view_df["bb_lower"], name="BB Lower",
                               line=dict(color="rgba(150,150,150,0.3)", width=0.5),
                               fill="tonexty", fillcolor="rgba(150,150,220,0.08)"), row=1, col=1)
 
 if "sma_20" in view_df.columns:
     fig2.add_trace(go.Scatter(x=timestamps, y=view_df["sma_20"], name="SMA 20",
                               line=dict(color="#FF9800", width=1.5)), row=1, col=1)
+if "sma_50" in view_df.columns:
+    fig2.add_trace(go.Scatter(x=timestamps, y=view_df["sma_50"], name="SMA 50",
+                              line=dict(color="#E91E63", width=1.5, dash="dash")), row=1, col=1)
 
 # RSI
 rsi_col = "rsi_14" if "rsi_14" in view_df.columns else "rsi" if "rsi" in view_df.columns else None
@@ -323,3 +323,15 @@ if "simple_return" in df.columns:
     c2.metric("Std Dev", f"{returns.std():.4%}", help="Standard deviation of returns")
     c3.metric("Skewness", f"{returns.skew():.3f}", help="Negative = more extreme losses than gains")
     c4.metric("Kurtosis", f"{returns.kurtosis():.3f}", help="Higher = fatter tails (more extreme events)")
+
+# ──────────────────────────────────────────────────
+# DOWNLOAD BUTTON
+# ──────────────────────────────────────────────────
+st.download_button(
+    label="Download feature data as CSV",
+    data=df.to_csv(index=False),
+    file_name=f"{symbol}_{interval}_features.csv",
+    mime="text/csv",
+)
+
+page_footer()

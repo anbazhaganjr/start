@@ -18,6 +18,7 @@ from start.features.builder import get_feature_columns
 from start.models.baselines import buy_and_hold, ma_crossover, rsi_mean_reversion
 from start.backtest.engine import backtest_signals
 from start.backtest.metrics import compute_metrics
+from start.dashboard.components import page_footer
 
 st.set_page_config(page_title="Paper Trade", page_icon="📊", layout="wide")
 st.title("📊 Paper Trade Simulator")
@@ -345,3 +346,16 @@ with col3:
     | Total Costs | ${metrics['total_costs']:,.2f} |
     | Turnover | {metrics['turnover']:.4f} |
     """)
+
+# ──────────────────────────────────────────────────
+# DOWNLOAD BUTTON
+# ──────────────────────────────────────────────────
+if not trades_df.empty:
+    st.download_button(
+        label="Download trades as CSV",
+        data=trades_df.to_csv(index=False),
+        file_name=f"{symbol}_trades.csv",
+        mime="text/csv",
+    )
+
+page_footer()
