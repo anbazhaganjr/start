@@ -12,8 +12,8 @@ from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
-from config import get_project_root
-from start.data.storage import load_results
+from config import get_project_root, get_config
+from start.data.storage import load_results, load_features
 from start.utils.constants import RING1_SYMBOLS
 
 st.set_page_config(page_title="Decision Dashboard", page_icon="\U0001f3af", layout="wide")
@@ -136,12 +136,143 @@ with col_regime2:
 st.divider()
 
 # ===================================================================
-# 2. Signal Consensus Panel
+# 2. LIVE TRADING SIGNALS (real-time from Tradier + feature analysis)
 # ===================================================================
-st.header("\U0001f4e1 Signal Consensus Panel")
+st.header("\U0001f4e1 Live Trading Signals")
 st.markdown(
-    "_For each stock, we count how many of our strategies say **buy**. "
-    "More green = more strategies agree it's a good bet._"
+    "_Real-time signals based on the latest market data. "
+    "Each strategy analyzes current indicators to produce a BUY, SELL, or HOLD recommendation._"
+)
+
+# Try to show live quotes
+_live_quotes = {}
+try:
+    from start.data.providers import TradierProvider
+    _cfg = get_config()
+    _tradier_key = _cfg.get("api", {}).get("tradier_key", "")
+    if _tradier_key:
+        _tp = TradierProvider(api_token=_tradier_key)
+        _qs = _tp.fetch_live_quotes(RING1_SYMBOLS)
+        _live_quotes = {q["symbol"]: q for q in _qs}
+except Exception:
+    pass
+
+# Generate live signals for each symbol
+from start.models.live_signals import get_baseline_signals, get_signal_consensus
+
+@st.cache_data(ttl=300)
+def _compute_live_signals():
+    """Compute live signals for all symbols using latest feature data."""
+    results = {}
+    for sym in RING1_SYMBOLS:
+        try:
+            df = load_features(sym, "1h")
+            if df.empty:
+                continue
+            signals = get_baseline_signals(df)
+            consensus = get_signal_consensus(signals)
+            results[sym] = consensus
+        except Exception:
+            continue
+    return results
+
+live_signals = _compute_live_signals()
+
+if live_signals:
+    rows_of_4 = [RING1_SYMBOLS[i:i+4] for i in range(0, len(RING1_SYMBOLS), 4)]
+    for row_syms in rows_of_4:
+        cols = st.columns(4)
+        for idx, sym in enumerate(row_syms):
+            if sym not in live_signals:
+                continue
+            cs = live_signals[sym]
+            quote = _live_quotes.get(sym, {})
+
+            # Determine color based on consensus
+            label = cs["overall_label"]
+            if label == "BUY":
+                traffic = "\U0001f7e2"
+                bg = "#d5f5e3"
+                border = "#27ae60"
+            elif label == "SELL":
+                traffic = "\U0001f534"
+                bg = "#fadbd8"
+                border = "#e74c3c"
+            else:
+                traffic = "\U0001f7e1"
+                bg = "#fef9e7"
+                border = "#f39c12"
+
+            price_html = ""
+            if quote:
+                chg = quote.get("change", 0)
+                pct = quote.get("change_pct", 0)
+                price_color = "#27ae60" if chg >= 0 else "#e74c3c"
+                arrow = "\u25b2" if chg >= 0 else "\u25bc"
+                price_html = (
+                    f'<div style="font-size:16px; font-weight:bold;">${quote["last"]:.2f}</div>'
+                    f'<div style="font-size:12px; color:{price_color};">'
+                    f'{arrow} {chg:+.2f} ({pct:+.2f}%)</div>'
+                )
+
+            with cols[idx]:
+                st.markdown(
+                    f"""
+                    <div style="border:2px solid {border}; border-radius:12px;
+                                background:{bg}; padding:16px; text-align:center;
+                                margin-bottom:8px;">
+                        <div style="font-size:32px;">{traffic}</div>
+                        <div style="font-size:22px; font-weight:bold;">{sym}</div>
+                        {price_html}
+                        <div style="font-size:16px; font-weight:bold; color:{border};
+                                    margin-top:4px;">{label}</div>
+                        <div style="font-size:11px; color:#888;">
+                            {cs["n_buy"]} buy / {cs["n_sell"]} sell / {cs["n_hold"]} hold
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    # Detailed signal breakdown for selected symbol
+    st.subheader("Signal Detail")
+    selected_sym = st.selectbox("Select a stock to see signal breakdown", RING1_SYMBOLS, key="signal_detail_sym")
+
+    if selected_sym in live_signals:
+        cs = live_signals[selected_sym]
+        for name, sig in cs["strategies"].items():
+            label_color = "#27ae60" if sig["signal"] == 1 else "#e74c3c" if sig["signal"] == 0 else "#f39c12"
+            conf_bar_width = int(sig["confidence"] * 100)
+            st.markdown(
+                f"""
+                <div style="display:flex; align-items:center; padding:8px 0; border-bottom:1px solid #eee;">
+                    <div style="width:180px; font-weight:bold;">{name}</div>
+                    <div style="width:60px; text-align:center; color:{label_color}; font-weight:bold;">
+                        {sig["label"]}</div>
+                    <div style="flex:1; background:#f0f0f0; border-radius:8px; height:20px; margin:0 12px;">
+                        <div style="width:{conf_bar_width}%; background:{label_color}; height:100%;
+                                    border-radius:8px; opacity:0.7;"></div>
+                    </div>
+                    <div style="width:300px; font-size:12px; color:#666;">{sig["reason"]}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.caption("Signals refresh every 5 minutes. Based on latest hourly feature data + live prices.")
+
+else:
+    st.info("Live signals not available. Run the data pipeline to generate feature data.")
+
+st.divider()
+
+# ===================================================================
+# 2b. Historical Signal Consensus (from backtest results)
+# ===================================================================
+st.header("\U0001f4ca Historical Performance Consensus")
+st.markdown(
+    "_Based on backtesting: for each stock, how many strategies were profitable? "
+    "More green = more strategies made money historically._"
 )
 
 strategies_list = combined_df["strategy"].unique().tolist()
