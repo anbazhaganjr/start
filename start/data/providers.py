@@ -106,13 +106,25 @@ class YFinanceProvider(DataProvider):
         )
 
         ticker = yf.Ticker(symbol)
-        df = ticker.history(
-            start=start,
-            end=end,
-            interval=yf_interval,
-            auto_adjust=True,
-            prepost=False,  # Regular hours only
-        )
+
+        # For intraday intervals, yfinance has limited lookback via start/end.
+        # Use period='60d' to maximize data, then filter to requested range.
+        if interval in ("5min", "15min"):
+            logger.info(f"[yfinance] Using period='60d' for {interval} (maximizes lookback)")
+            df = ticker.history(
+                period="60d",
+                interval=yf_interval,
+                auto_adjust=True,
+                prepost=False,
+            )
+        else:
+            df = ticker.history(
+                start=start,
+                end=end,
+                interval=yf_interval,
+                auto_adjust=True,
+                prepost=False,  # Regular hours only
+            )
 
         if df.empty:
             logger.warning(f"[yfinance] No data returned for {symbol} {interval}")

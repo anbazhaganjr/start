@@ -38,31 +38,45 @@ with st.expander("Strategy Explanations", expanded=False):
 
 root = get_project_root()
 
-# Controls
+# ── Controls ──
 features_dir = root / "data" / "features"
-available = sorted([f.stem.replace("_1h", "").replace("_1d", "")
-                    for f in features_dir.glob("*.parquet")]) if features_dir.exists() else []
+if features_dir.exists():
+    _files = sorted(features_dir.glob("*.parquet"))
+    import re
+    _raw_intervals = {f.stem.rsplit("_", 1)[-1] for f in _files if "_" in f.stem}
+    _interval_order = ["5min", "15min", "1h", "1d"]
+    _intervals = [i for i in _interval_order if i in _raw_intervals]
+    _symbols = sorted({re.sub(r"_(5min|15min|1h|1d)$", "", f.stem) for f in _files})
+else:
+    _symbols, _intervals = [], []
 
-if not available:
+if not _symbols:
     st.warning("No feature files found.")
     st.stop()
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    symbol = st.selectbox("Symbol", available,
+    symbol = st.selectbox("Symbol", _symbols,
+                          index=_symbols.index("AAPL") if "AAPL" in _symbols else 0,
                           help="Pick any of the 12 high-liquidity stocks in our universe")
 with col2:
+    interval = st.selectbox("Interval", _intervals if _intervals else ["1h"],
+                            index=_intervals.index("1h") if "1h" in _intervals else 0,
+                            help="5min = intraday, 1h = hourly, 1d = daily")
+with col3:
     strategy_name = st.selectbox("Strategy", ["Buy & Hold", "MA Crossover", "RSI Mean Reversion"],
                                  help="Different trading approaches to compare")
-with col3:
-    lookback = st.slider("Lookback Bars", 100, 3000, 500,
+with col4:
+    lookback = st.slider("Lookback Bars", 100, 5000, 500,
                          help="How many recent data points to simulate on")
 
-df = load_features(symbol, "1h")
+df = load_features(symbol, interval)
 if df.empty:
-    st.warning(f"No data for {symbol}")
+    st.warning(f"No data for {symbol} ({interval}). Try a different interval.")
     st.stop()
 
+# Cap lookback to actual data length
+lookback = min(lookback, len(df))
 df = df.tail(lookback).reset_index(drop=True)
 
 # Generate signals
