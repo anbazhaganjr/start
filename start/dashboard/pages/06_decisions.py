@@ -98,16 +98,7 @@ else:
 col_regime1, col_regime2 = st.columns([1, 3])
 
 with col_regime1:
-    st.markdown(
-        f"""
-        <div style="background-color:{color}; color:white; border-radius:20px;
-                    text-align:center; padding:40px 20px; font-size:28px;
-                    font-weight:bold;">
-            {icon} {regime}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.subheader(f"{icon} {regime}")
     st.metric("Avg Strategy Return", f"{avg_return:.2%}")
 
 with col_regime2:
@@ -188,51 +179,30 @@ if live_signals:
             cs = live_signals[sym]
             quote = _live_quotes.get(sym, {})
 
-            # Determine color based on consensus
-            label = cs["overall_label"]
-            if label == "BUY":
+            # Determine emoji based on consensus
+            sig_label = cs["overall_label"]
+            if sig_label == "BUY":
                 traffic = "\U0001f7e2"
-                bg = "#d5f5e3"
-                border = "#27ae60"
-            elif label == "SELL":
+            elif sig_label == "SELL":
                 traffic = "\U0001f534"
-                bg = "#fadbd8"
-                border = "#e74c3c"
             else:
                 traffic = "\U0001f7e1"
-                bg = "#fef9e7"
-                border = "#f39c12"
-
-            price_html = ""
-            if quote:
-                chg = quote.get("change", 0)
-                pct = quote.get("change_pct", 0)
-                price_color = "#27ae60" if chg >= 0 else "#e74c3c"
-                arrow = "\u25b2" if chg >= 0 else "\u25bc"
-                price_html = (
-                    f'<div style="font-size:16px; font-weight:bold;">${quote["last"]:.2f}</div>'
-                    f'<div style="font-size:12px; color:{price_color};">'
-                    f'{arrow} {chg:+.2f} ({pct:+.2f}%)</div>'
-                )
 
             with cols[idx]:
-                st.markdown(
-                    f"""
-                    <div style="border:2px solid {border}; border-radius:12px;
-                                background:{bg}; padding:16px; text-align:center;
-                                margin-bottom:8px;">
-                        <div style="font-size:32px;">{traffic}</div>
-                        <div style="font-size:22px; font-weight:bold;">{sym}</div>
-                        {price_html}
-                        <div style="font-size:16px; font-weight:bold; color:{border};
-                                    margin-top:4px;">{label}</div>
-                        <div style="font-size:11px; color:#888;">
-                            {cs["n_buy"]} buy / {cs["n_sell"]} sell / {cs["n_hold"]} hold
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+                # Use native Streamlit components — no raw HTML
+                price_str = ""
+                delta_str = None
+                if quote:
+                    price_str = f"${quote['last']:.2f}"
+                    delta_str = f"{quote['change']:+.2f} ({quote['change_pct']:+.2f}%)"
+
+                st.metric(
+                    label=f"{traffic} {sym}",
+                    value=price_str if price_str else sig_label,
+                    delta=delta_str,
+                    help=f"{cs['n_buy']} buy / {cs['n_sell']} sell / {cs['n_hold']} hold",
                 )
+                st.caption(f"**{sig_label}** · {cs['n_buy']}B / {cs['n_sell']}S / {cs['n_hold']}H")
 
     # Detailed signal breakdown for selected symbol
     st.subheader("Signal Detail")
@@ -240,24 +210,31 @@ if live_signals:
 
     if selected_sym in live_signals:
         cs = live_signals[selected_sym]
+
+        # Build a DataFrame for clean display
+        detail_rows = []
         for name, sig in cs["strategies"].items():
-            label_color = "#27ae60" if sig["signal"] == 1 else "#e74c3c" if sig["signal"] == 0 else "#f39c12"
-            conf_bar_width = int(sig["confidence"] * 100)
-            st.markdown(
-                f"""
-                <div style="display:flex; align-items:center; padding:8px 0; border-bottom:1px solid #eee;">
-                    <div style="width:180px; font-weight:bold;">{name}</div>
-                    <div style="width:60px; text-align:center; color:{label_color}; font-weight:bold;">
-                        {sig["label"]}</div>
-                    <div style="flex:1; background:#f0f0f0; border-radius:8px; height:20px; margin:0 12px;">
-                        <div style="width:{conf_bar_width}%; background:{label_color}; height:100%;
-                                    border-radius:8px; opacity:0.7;"></div>
-                    </div>
-                    <div style="width:300px; font-size:12px; color:#666;">{sig["reason"]}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            detail_rows.append({
+                "Strategy": name,
+                "Signal": f"{'🟢' if sig['signal'] == 1 else '🔴' if sig['signal'] == 0 else '🟡'} {sig['label']}",
+                "Confidence": sig["confidence"],
+                "Reason": sig["reason"],
+            })
+
+        detail_df = pd.DataFrame(detail_rows)
+        st.dataframe(
+            detail_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Confidence": st.column_config.ProgressColumn(
+                    "Confidence",
+                    min_value=0.0,
+                    max_value=1.0,
+                    format="%.0%%",
+                ),
+            },
+        )
 
     st.caption("Signals refresh every 5 minutes. Based on latest hourly feature data + live prices.")
 
@@ -289,33 +266,20 @@ for row_syms in rows_of_4:
 
         if n_positive >= 4:
             traffic = "\U0001f7e2"
-            label = "Strong Buy Signal"
-            bg = "#d5f5e3"
-            border = "#27ae60"
+            hist_label = "Strong Buy"
         elif n_positive >= 2:
             traffic = "\U0001f7e1"
-            label = "Mixed Signals"
-            bg = "#fef9e7"
-            border = "#f39c12"
+            hist_label = "Mixed"
         else:
             traffic = "\U0001f534"
-            label = "Caution"
-            bg = "#fadbd8"
-            border = "#e74c3c"
+            hist_label = "Caution"
 
         with cols[idx]:
-            st.markdown(
-                f"""
-                <div style="border:2px solid {border}; border-radius:12px;
-                            background:{bg}; padding:16px; text-align:center;
-                            margin-bottom:8px;">
-                    <div style="font-size:32px;">{traffic}</div>
-                    <div style="font-size:22px; font-weight:bold;">{sym}</div>
-                    <div style="font-size:14px; color:#555;">{label}</div>
-                    <div style="font-size:12px; color:#888;">{n_positive}/{n_strats} strategies profitable</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            st.metric(
+                label=f"{traffic} {sym}",
+                value=hist_label,
+                delta=f"{n_positive}/{n_strats} profitable",
+                delta_color="normal" if n_positive >= 3 else ("off" if n_positive >= 2 else "inverse"),
             )
 
 st.divider()
@@ -353,25 +317,15 @@ if not row.empty:
     best_ret = combined_df[combined_df["strategy"] == sel_strategy]["total_return"].max()
     best_case = invest * (1 + best_ret)
 
-    change_color = "#27ae60" if total_ret >= 0 else "#e74c3c"
     sign = "+" if total_ret >= 0 else ""
 
     st.markdown(
-        f"""
-        <div style="background:#f8f9fa; border-radius:16px; padding:24px;
-                    text-align:center; border:1px solid #dee2e6;">
-            <div style="font-size:18px; color:#666;">If you invested <b>$10,000</b>
-            using <b>{_nice(sel_strategy)}</b> on <b>{sel_symbol}</b>...</div>
-            <div style="font-size:48px; font-weight:bold; color:{change_color};
-                        margin:12px 0;">
-                ${final:,.0f}
-            </div>
-            <div style="font-size:20px; color:{change_color};">
-                ({sign}{total_ret:.2%})
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+        f"If you invested **$10,000** using **{_nice(sel_strategy)}** on **{sel_symbol}**..."
+    )
+    st.metric(
+        label="Final Portfolio Value",
+        value=f"${final:,.0f}",
+        delta=f"{sign}{total_ret:.2%}",
     )
 
     m1, m2, m3, m4 = st.columns(4)
@@ -517,18 +471,7 @@ else:
         "highest risk-adjusted returns but trades more frequently."
     )
 
-st.markdown(
-    f"""
-    <div style="background:linear-gradient(135deg, {profile_color}22, {profile_color}11);
-                border-left:6px solid {profile_color}; border-radius:12px;
-                padding:24px; margin:16px 0;">
-        <div style="font-size:28px; font-weight:bold; color:{profile_color};">
-            {profile_icon} Your Profile: {profile}
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.subheader(f"{profile_icon} Your Profile: {profile}")
 st.markdown(profile_text)
 
 # Show performance of recommended strategies
@@ -599,17 +542,8 @@ st.divider()
 # ===================================================================
 # 7. Disclaimer
 # ===================================================================
-st.markdown(
-    """
-    <div style="background:#f8d7da; border:1px solid #f5c6cb; border-radius:12px;
-                padding:20px; margin-top:24px; color:#721c24; text-align:center;">
-        <div style="font-size:18px; font-weight:bold; margin-bottom:8px;">
-            \u26a0\ufe0f Important Disclaimer
-        </div>
-        <p style="margin:4px 0;">This is a research project for educational purposes only. <b>Not financial advice.</b></p>
-        <p style="margin:4px 0;">Past performance does not guarantee future results.</p>
-        <p style="margin:4px 0;">All results are from backtesting on historical data with simulated trading costs.</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
+st.warning(
+    "**Important Disclaimer:** This is a research project for educational purposes only. "
+    "**Not financial advice.** Past performance does not guarantee future results. "
+    "All results are from backtesting on historical data with simulated trading costs."
 )

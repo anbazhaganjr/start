@@ -25,7 +25,7 @@ st.set_page_config(
 from start.dashboard.components import auth_check, page_footer
 auth_check()
 
-from config import get_project_root, get_setting
+from config import get_project_root
 from start.data.storage import load_results
 
 root = get_project_root()
@@ -49,20 +49,15 @@ try:
         _quotes = _tp.fetch_live_quotes(_symbols_list)
 
         if _quotes:
-            # Scrolling ticker-style row
+            # Ticker strip using native Streamlit metrics
             ticker_cols = st.columns(len(_quotes))
             for i, q in enumerate(_quotes):
                 chg = q["change"]
                 pct = q["change_pct"]
-                arrow = "▲" if chg >= 0 else "▼"
-                color = "green" if chg >= 0 else "red"
-                ticker_cols[i].markdown(
-                    f"<div style='text-align:center;padding:4px;'>"
-                    f"<b>{q['symbol']}</b><br>"
-                    f"${q['last']:.2f}<br>"
-                    f"<span style='color:{color};font-size:0.85em;'>"
-                    f"{arrow} {chg:+.2f} ({pct:+.2f}%)</span></div>",
-                    unsafe_allow_html=True,
+                ticker_cols[i].metric(
+                    label=q["symbol"],
+                    value=f"${q['last']:.2f}",
+                    delta=f"{chg:+.2f} ({pct:+.2f}%)",
                 )
             st.caption("Live prices via Tradier API — updates on page refresh")
 except Exception:

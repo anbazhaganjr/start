@@ -4,6 +4,8 @@ Shared dashboard components.
 Metric cards, filters, and reusable UI elements for Streamlit pages.
 """
 
+import re
+
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -21,7 +23,6 @@ def get_available_symbols_and_intervals(features_dir: Path) -> tuple:
     Filenames are like AAPL_1h.parquet, AAPL_5min.parquet.
     Returns deduplicated symbol list and logically-ordered interval list.
     """
-    import re
     if not features_dir.exists():
         return [], []
 
