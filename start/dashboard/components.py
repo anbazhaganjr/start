@@ -14,25 +14,78 @@ def metric_card(label: str, value, delta=None, delta_color="normal"):
     st.metric(label=label, value=value, delta=delta, delta_color=delta_color)
 
 
-def symbol_selector(available: list, default: str = "AAPL") -> str:
-    """Reusable symbol selector in sidebar."""
-    idx = available.index(default) if default in available else 0
-    return st.sidebar.selectbox("Symbol", available, index=idx)
+def get_available_symbols_and_intervals(features_dir: Path) -> tuple:
+    """
+    Scan feature directory and return (symbols, intervals).
 
-
-def interval_selector() -> str:
-    """Reusable interval selector in sidebar."""
-    return st.sidebar.selectbox("Interval", ["1h", "1d"], index=0)
-
-
-def get_available_symbols(features_dir: Path) -> list:
-    """Get list of symbols with feature files."""
+    Filenames are like AAPL_1h.parquet, AAPL_5min.parquet.
+    Returns deduplicated symbol list and logically-ordered interval list.
+    """
+    import re
     if not features_dir.exists():
-        return []
-    return sorted([
-        f.stem.replace("_1h", "").replace("_1d", "")
-        for f in features_dir.glob("*.parquet")
-    ])
+        return [], []
+
+    files = list(features_dir.glob("*.parquet"))
+    if not files:
+        return [], []
+
+    # Extract raw intervals from filenames
+    raw_intervals = set()
+    raw_symbols = set()
+    for f in files:
+        stem = f.stem
+        # Match known interval suffixes
+        m = re.match(r"^(.+?)_(5min|15min|1h|1d)$", stem)
+        if m:
+            raw_symbols.add(m.group(1))
+            raw_intervals.add(m.group(2))
+        else:
+            # No interval suffix — treat entire stem as symbol
+            raw_symbols.add(stem)
+
+    # Order intervals logically: finest → coarsest
+    # Always include "1d" — we can aggregate from intraday data on the fly
+    if raw_intervals:  # if we have any intraday data, daily is available
+        raw_intervals.add("1d")
+    interval_order = ["5min", "15min", "1h", "1d"]
+    intervals = [i for i in interval_order if i in raw_intervals]
+
+    return sorted(raw_symbols), intervals
+
+
+def symbol_interval_selector(features_dir: Path, default_symbol: str = "AAPL",
+                              default_interval: str = "1h", layout: str = "columns"):
+    """
+    Reusable Symbol + Interval selector.
+
+    layout: "columns" puts them side-by-side, "stacked" puts them vertically.
+    Returns (symbol, interval).
+    """
+    symbols, intervals = get_available_symbols_and_intervals(features_dir)
+
+    if not symbols:
+        st.warning("No feature files found. Run the data pipeline first.")
+        st.stop()
+
+    if not intervals:
+        intervals = ["1h"]
+
+    sym_idx = symbols.index(default_symbol) if default_symbol in symbols else 0
+    int_idx = intervals.index(default_interval) if default_interval in intervals else 0
+
+    if layout == "columns":
+        c1, c2 = st.columns(2)
+        with c1:
+            symbol = st.selectbox("Symbol", symbols, index=sym_idx)
+        with c2:
+            interval = st.selectbox("Interval", intervals, index=int_idx,
+                                     help="5min = intraday (60-day window), 1h = hourly, 1d = daily")
+    else:
+        symbol = st.selectbox("Symbol", symbols, index=sym_idx)
+        interval = st.selectbox("Interval", intervals, index=int_idx,
+                                 help="5min = intraday (60-day window), 1h = hourly, 1d = daily")
+
+    return symbol, interval
 
 
 def auth_check():

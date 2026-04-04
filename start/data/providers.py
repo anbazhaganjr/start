@@ -417,6 +417,85 @@ class TradierProvider(DataProvider):
         logger.info(f"[tradier] Got {len(df)} total bars for {symbol}")
         return df
 
+    def fetch_live_quote(self, symbol: str) -> dict:
+        """
+        Fetch real-time quote for a single symbol.
+
+        Returns dict with: symbol, last, bid, ask, volume, change, change_pct, timestamp
+        """
+        import requests
+
+        resp = requests.get(
+            f"{self.base_url}/v1/markets/quotes",
+            params={"symbols": symbol, "greeks": "false"},
+            headers=self._headers,
+            timeout=5,
+        )
+
+        if resp.status_code != 200:
+            logger.warning(f"[tradier] Quote failed: HTTP {resp.status_code}")
+            return {}
+
+        data = resp.json()
+        if "quotes" not in data or "quote" not in data["quotes"]:
+            return {}
+
+        q = data["quotes"]["quote"]
+        return {
+            "symbol": q.get("symbol", symbol),
+            "last": float(q.get("last", 0)),
+            "bid": float(q.get("bid", 0)),
+            "ask": float(q.get("ask", 0)),
+            "volume": int(q.get("volume", 0)),
+            "change": float(q.get("change", 0)),
+            "change_pct": float(str(q.get("change_percentage", 0)).replace("%", "")),
+            "open": float(q.get("open", 0)),
+            "high": float(q.get("high", 0)),
+            "low": float(q.get("low", 0)),
+            "prev_close": float(q.get("prevclose", 0)),
+            "description": q.get("description", ""),
+        }
+
+    def fetch_live_quotes(self, symbols: list) -> list:
+        """Fetch real-time quotes for multiple symbols at once."""
+        import requests
+
+        resp = requests.get(
+            f"{self.base_url}/v1/markets/quotes",
+            params={"symbols": ",".join(symbols), "greeks": "false"},
+            headers=self._headers,
+            timeout=10,
+        )
+
+        if resp.status_code != 200:
+            logger.warning(f"[tradier] Batch quote failed: HTTP {resp.status_code}")
+            return []
+
+        data = resp.json()
+        if "quotes" not in data or "quote" not in data["quotes"]:
+            return []
+
+        quotes = data["quotes"]["quote"]
+        if isinstance(quotes, dict):
+            quotes = [quotes]  # Single symbol returns dict, not list
+
+        results = []
+        for q in quotes:
+            results.append({
+                "symbol": q.get("symbol", ""),
+                "last": float(q.get("last", 0)),
+                "change": float(q.get("change", 0)),
+                "change_pct": float(str(q.get("change_percentage", 0)).replace("%", "")),
+                "volume": int(q.get("volume", 0)),
+                "open": float(q.get("open", 0)),
+                "high": float(q.get("high", 0)),
+                "low": float(q.get("low", 0)),
+                "prev_close": float(q.get("prevclose", 0)),
+                "description": q.get("description", ""),
+            })
+
+        return results
+
     def _fetch_daily(self, symbol: str, start: str, end: str) -> pd.DataFrame:
         import requests
 

@@ -164,21 +164,72 @@ def save_features(df: pd.DataFrame, symbol: str, interval: str = "1h") -> Path:
     return path
 
 
+def _aggregate_to_daily(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate intraday bars (5min / 1h) into daily OHLCV bars."""
+    df = df.copy()
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df["_date"] = df["timestamp"].dt.date
+
+    agg = df.groupby("_date").agg(
+        open=("open", "first"),
+        high=("high", "max"),
+        low=("low", "min"),
+        close=("close", "last"),
+        volume=("volume", "sum"),
+    ).reset_index()
+
+    agg["timestamp"] = pd.to_datetime(agg["_date"])
+    agg = agg.drop(columns=["_date"])
+
+    # Carry over symbol/provider if present
+    if "symbol" in df.columns:
+        agg["symbol"] = df["symbol"].iloc[0]
+    if "provider" in df.columns:
+        agg["provider"] = df["provider"].iloc[0]
+
+    return agg
+
+
 def load_features(
     symbol: str,
     interval: str = "1h",
 ) -> pd.DataFrame:
-    """Load feature matrix from Parquet."""
-    path = _get_dir("features") / f"{symbol}_{interval}.parquet"
-    if not path.exists():
-        logger.warning(f"[storage] No features found: {path}")
-        return pd.DataFrame()
+    """
+    Load feature matrix from Parquet.
 
-    df = pd.read_parquet(path, engine="pyarrow")
-    # Strip timezone info to avoid ZoneInfoNotFoundError on minimal containers
-    df = _strip_tz(df)
-    logger.info(f"[storage] Loaded {len(df)} feature rows for {symbol}")
-    return df
+    If interval='1d' and no daily file exists, aggregates from 1h (or 5min)
+    data on the fly — so daily is always available.
+    """
+    path = _get_dir("features") / f"{symbol}_{interval}.parquet"
+
+    if path.exists():
+        df = pd.read_parquet(path, engine="pyarrow")
+        df = _strip_tz(df)
+        logger.info(f"[storage] Loaded {len(df)} feature rows for {symbol} ({interval})")
+        return df
+
+    # Fallback: aggregate intraday → daily when 1d is requested
+    if interval == "1d":
+        for fallback in ("1h", "5min"):
+            fb_path = _get_dir("features") / f"{symbol}_{fallback}.parquet"
+            if fb_path.exists():
+                raw = pd.read_parquet(fb_path, engine="pyarrow")
+                raw = _strip_tz(raw)
+                daily = _aggregate_to_daily(raw)
+                # Compute technical indicators on the daily bars
+                try:
+                    from start.features.technical import add_technical_indicators
+                    from start.features.returns import add_returns
+                    daily = add_technical_indicators(daily)
+                    daily = add_returns(daily)
+                    daily = daily.dropna().reset_index(drop=True)
+                except Exception as e:
+                    logger.warning(f"[storage] Could not compute daily indicators: {e}")
+                logger.info(f"[storage] Aggregated {len(raw)} {fallback} bars → {len(daily)} daily bars for {symbol}")
+                return daily
+
+    logger.warning(f"[storage] No features found: {path}")
+    return pd.DataFrame()
 
 
 def load_features_all(

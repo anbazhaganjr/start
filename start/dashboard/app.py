@@ -32,6 +32,42 @@ root = get_project_root()
 
 st.title("📈 START — Strategic Technical Analysis for Reliable Trading")
 st.markdown("**M.S. Data Analytics Capstone | McDaniel College**")
+
+# ──────────────────────────────────────────────────
+# LIVE MARKET TICKER STRIP
+# ──────────────────────────────────────────────────
+try:
+    from start.data.providers import TradierProvider
+    from config import get_config
+
+    _cfg = get_config()
+    _tradier_key = _cfg.get("api", {}).get("tradier_key", "")
+    if _tradier_key:
+        _tp = TradierProvider(api_token=_tradier_key)
+        _symbols_list = ["SPY", "QQQ", "NVDA", "AAPL", "TSLA", "MSFT",
+                         "AMZN", "META", "GOOGL", "AMD", "NFLX", "AVGO"]
+        _quotes = _tp.fetch_live_quotes(_symbols_list)
+
+        if _quotes:
+            # Scrolling ticker-style row
+            ticker_cols = st.columns(len(_quotes))
+            for i, q in enumerate(_quotes):
+                chg = q["change"]
+                pct = q["change_pct"]
+                arrow = "▲" if chg >= 0 else "▼"
+                color = "green" if chg >= 0 else "red"
+                ticker_cols[i].markdown(
+                    f"<div style='text-align:center;padding:4px;'>"
+                    f"<b>{q['symbol']}</b><br>"
+                    f"${q['last']:.2f}<br>"
+                    f"<span style='color:{color};font-size:0.85em;'>"
+                    f"{arrow} {chg:+.2f} ({pct:+.2f}%)</span></div>",
+                    unsafe_allow_html=True,
+                )
+            st.caption("Live prices via Tradier API — updates on page refresh")
+except Exception:
+    pass  # No live data available (no key, offline, etc.)
+
 st.markdown("---")
 
 # Project Overview
@@ -141,6 +177,7 @@ st.markdown("""
 | 📰 **Sentiment** | See how AI reads financial news — sentiment gauges, headline analysis |
 | 🔬 **Ablation** | The key experiment: which components actually matter? Animated charts + radar plots |
 | 📊 **Paper Trade** | Pick a stock + strategy and simulate trading with fake money. See every trade. |
+| 🎯 **Decisions** | Plain-English summary for non-technical users — market signals, risk quiz, investment calculator |
 
 **Use the sidebar (left) to navigate between pages.**
 """)

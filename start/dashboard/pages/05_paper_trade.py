@@ -18,7 +18,7 @@ from start.features.builder import get_feature_columns
 from start.models.baselines import buy_and_hold, ma_crossover, rsi_mean_reversion
 from start.backtest.engine import backtest_signals
 from start.backtest.metrics import compute_metrics
-from start.dashboard.components import page_footer
+from start.dashboard.components import page_footer, symbol_interval_selector
 
 st.set_page_config(page_title="Paper Trade", page_icon="📊", layout="wide")
 st.title("📊 Paper Trade Simulator")
@@ -37,25 +37,15 @@ with st.expander("Strategy Explanations", expanded=False):
     """)
 
 root = get_project_root()
-
-# ── Controls ──
 features_dir = root / "data" / "features"
-if features_dir.exists():
-    _files = sorted(features_dir.glob("*.parquet"))
-    import re
-    _raw_intervals = {f.stem.rsplit("_", 1)[-1] for f in _files if "_" in f.stem}
-    _interval_order = ["5min", "15min", "1h", "1d"]
-    _intervals = [i for i in _interval_order if i in _raw_intervals]
-    _symbols = sorted({re.sub(r"_(5min|15min|1h|1d)$", "", f.stem) for f in _files})
-else:
-    _symbols, _intervals = [], []
-
-if not _symbols:
-    st.warning("No feature files found.")
-    st.stop()
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
+    from start.dashboard.components import get_available_symbols_and_intervals
+    _symbols, _intervals = get_available_symbols_and_intervals(features_dir)
+    if not _symbols:
+        st.warning("No feature files found.")
+        st.stop()
     symbol = st.selectbox("Symbol", _symbols,
                           index=_symbols.index("AAPL") if "AAPL" in _symbols else 0,
                           help="Pick any of the 12 high-liquidity stocks in our universe")

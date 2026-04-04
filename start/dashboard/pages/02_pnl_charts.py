@@ -18,7 +18,7 @@ from start.features.builder import get_feature_columns
 from start.models.baselines import buy_and_hold, ma_crossover
 from start.backtest.engine import backtest_signals
 from start.backtest.metrics import compute_metrics
-from start.dashboard.components import page_footer
+from start.dashboard.components import page_footer, symbol_interval_selector
 
 st.set_page_config(page_title="PnL Charts", page_icon="💰", layout="wide")
 st.title("💰 PnL & Equity Analysis")
@@ -28,37 +28,17 @@ st.markdown("""
 """)
 
 root = get_project_root()
-
-# ── Symbol + Interval selector ──
 features_dir = root / "data" / "features"
-if features_dir.exists():
-    _files = sorted(features_dir.glob("*.parquet"))
-    # Discover available intervals from filenames like AAPL_1h.parquet, AAPL_5min.parquet
-    import re
-    _raw_intervals = {f.stem.rsplit("_", 1)[-1] for f in _files if "_" in f.stem}
-    # Order intervals logically: finest → coarsest
-    _interval_order = ["5min", "15min", "1h", "1d"]
-    _intervals = [i for i in _interval_order if i in _raw_intervals]
-    # Deduplicated symbol list (strip any interval suffix)
-    _symbols = sorted({re.sub(r"_(5min|15min|1h|1d)$", "", f.stem) for f in _files})
-else:
-    _symbols, _intervals = [], []
 
-if not _symbols:
-    st.warning("No feature files found. Run scripts 01-02 first.")
-    st.stop()
-
-symbol = st.selectbox("Symbol", _symbols, index=_symbols.index("AAPL") if "AAPL" in _symbols else 0)
-interval = st.selectbox("Interval", _intervals if _intervals else ["1h"],
-                        index=_intervals.index("1h") if "1h" in _intervals else 0,
-                        help="5min = intraday (60-day window), 1h = hourly, 1d = daily")
+symbol, interval = symbol_interval_selector(features_dir)
 
 df = load_features(symbol, interval)
 if df.empty:
-    st.warning(f"No data for {symbol} ({interval})")
+    st.warning(f"No data for {symbol} ({interval}). Try a different interval.")
     st.stop()
 
-st.markdown(f"**{symbol}** · {interval} · {len(df):,} bars · {len(get_feature_columns(df))} features · "
+st.markdown(f"**{symbol}** · {interval} · **{len(df):,}** bars · "
+            f"{len(get_feature_columns(df))} features · "
             f"{df['timestamp'].iloc[0]} → {df['timestamp'].iloc[-1]}")
 
 # Generate signals and backtest
