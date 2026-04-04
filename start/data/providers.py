@@ -331,28 +331,35 @@ class TradierProvider(DataProvider):
 
         logger.info(f"[tradier] Fetching {symbol} {interval} bars: {start} → {end}")
 
-        # Tradier intraday: fetch day by day
+        # Tradier timesales supports date-range queries (max ~1 month per call)
+        # Chunk into ~3-week windows to stay within API limits
         all_dfs = []
         current = pd.Timestamp(start)
         end_dt = pd.Timestamp(end)
+        chunk_days = 20  # ~3 weeks per request
 
         while current <= end_dt:
-            date_str = current.strftime("%Y-%m-%d")
+            chunk_end = min(current + timedelta(days=chunk_days), end_dt)
+            start_str = current.strftime("%Y-%m-%d")
+            end_str = chunk_end.strftime("%Y-%m-%d")
+
+            logger.info(f"[tradier] Chunk: {start_str} → {end_str}")
+
             resp = requests.get(
                 f"{self.base_url}/v1/markets/timesales",
                 params={
                     "symbol": symbol,
                     "interval": tradier_interval,
-                    "start": f"{date_str} 09:30",
-                    "end": f"{date_str} 16:00",
+                    "start": start_str,
+                    "end": end_str,
                 },
                 headers=self._headers,
             )
 
             if resp.status_code == 429:
-                logger.warning("[tradier] Rate limited, waiting 2s...")
-                time.sleep(2)
-                continue
+                logger.warning("[tradier] Rate limited, waiting 5s...")
+                time.sleep(5)
+                continue  # retry same chunk
 
             if resp.status_code == 200:
                 data = resp.json()
@@ -360,8 +367,12 @@ class TradierProvider(DataProvider):
                     bars = data["series"]["data"]
                     day_df = pd.DataFrame(bars)
                     all_dfs.append(day_df)
+                    logger.info(f"[tradier] Got {len(bars)} bars for chunk")
+            else:
+                logger.warning(f"[tradier] HTTP {resp.status_code} for {symbol} chunk {start_str}-{end_str}")
 
-            current += timedelta(days=1)
+            current = chunk_end + timedelta(days=1)
+            time.sleep(0.5)  # be polite to the API
 
         if not all_dfs:
             logger.warning(f"[tradier] No data returned for {symbol} {interval}")
@@ -370,13 +381,28 @@ class TradierProvider(DataProvider):
             )
 
         df = pd.concat(all_dfs, ignore_index=True)
-        df = df.rename(columns={"time": "timestamp"})
-        df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize("US/Eastern")
+        # Tradier returns 'time' (ISO string) and 'timestamp' (unix epoch)
+        # Use 'time' column for parsing, drop the unix 'timestamp'
+        if "time" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["time"])
+            df = df.drop(columns=["time"], errors="ignore")
+        else:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+        # Strip timezone if present, then localize
+        if df["timestamp"].dt.tz is not None:
+            df["timestamp"] = df["timestamp"].dt.tz_convert("US/Eastern")
+        else:
+            df["timestamp"] = df["timestamp"].dt.tz_localize("US/Eastern")
         df = df[["timestamp", "open", "high", "low", "close", "volume"]].copy()
+        # Filter to market hours only (09:30 - 16:00 ET)
+        df = df[
+            (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute >= 570)  # 9:30
+            & (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute <= 960)  # 16:00
+        ]
         df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
         df = df.reset_index(drop=True)
 
-        logger.info(f"[tradier] Got {len(df)} bars for {symbol}")
+        logger.info(f"[tradier] Got {len(df)} total bars for {symbol}")
         return df
 
     def _fetch_daily(self, symbol: str, start: str, end: str) -> pd.DataFrame:
