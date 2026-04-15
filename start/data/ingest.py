@@ -6,6 +6,7 @@ providers (yfinance → alpaca → tradier → local). Results are merged and
 deduplicated, then passed to the storage layer.
 """
 
+from datetime import datetime, timedelta
 from typing import Optional
 
 import pandas as pd
@@ -119,10 +120,15 @@ def ingest_all(
 
     if symbols is None:
         symbols = config["symbols"]
-    if start is None:
-        start = config["data"]["start_date"]
     if end is None:
-        end = config["data"]["end_date"]
+        end = datetime.now().strftime("%Y-%m-%d")
+    if start is None:
+        # yfinance 1h limit is ~730 days; use 725 for safety margin
+        max_lookback = 725 if interval in ("1h", "5min", "15min") else 3650
+        default_start = (datetime.now() - timedelta(days=max_lookback)).strftime("%Y-%m-%d")
+        cfg_start = config["data"]["start_date"]
+        # Use whichever is more recent to stay within yfinance limits
+        start = max(cfg_start, default_start)
     if providers is None:
         providers = ["yfinance"]
 

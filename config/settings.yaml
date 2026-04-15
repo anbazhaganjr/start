@@ -25,8 +25,8 @@ symbols:
 data:
   interval: "5Min"
   # yfinance 1h: ~730 days back; daily: full history
-  start_date: "2024-04-15"
-  end_date: "2026-03-31"
+  start_date: "2024-04-20"
+  end_date: "2026-04-15"
   raw_dir: "data/raw"
   parquet_dir: "data/parquet"
   features_dir: "data/features"
