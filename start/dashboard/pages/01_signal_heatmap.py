@@ -27,11 +27,11 @@ with st.expander("Metric Glossary", expanded=False):
     st.markdown("""
     | Metric | What It Means | Good Value |
     |---|---|---|
-    | **Sharpe Ratio** | Return earned per unit of risk taken | > 1.0 (> 2.0 is excellent) |
+    | **Sharpe Ratio** | Return earned per unit of risk taken (hourly annualized) | > 0.5 is decent; > 1.0 is strong; > 1.5 is excellent |
     | **Total Return** | Percentage gain/loss on the investment | Higher is better |
     | **Win Rate** | % of trades that made money | > 50% |
     | **Max Drawdown** | Worst peak-to-trough loss | Lower is better (less scary) |
-    | **Sortino Ratio** | Like Sharpe but only penalizes downside risk | > 1.0 |
+    | **Sortino Ratio** | Like Sharpe but only penalizes downside risk | > 0.5 is decent; > 1.0 is strong |
     | **Profit Factor** | Gross profit / Gross loss | > 1.0 means profitable |
     """)
 
